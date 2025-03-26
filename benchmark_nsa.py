@@ -15,9 +15,9 @@ from fla.ops.nsa import parallel_nsa as nsa_fla
         # argument name whose value corresponds to a different line in the plot
         line_arg='provider',
         # possible values for `line_arg``
-        line_vals=['nsa', 'nsa_bwd', 'nsa_fla', 'nsa_fla_bwd', 'nsa_tilelang', 'nsa_tilelang_bwd', 'nsa_xunhaolai', 'nsa_xunhaolai_bwd', 'nsa_lucidrains', 'nsa_lucidrains_bwd', 'nsa_falai', 'nsa_falai_bwd', 'flash', 'flash_bwd'],
+        line_vals=['nsa', 'nsa_bwd', 'flash', 'flash_bwd'], #'nsa_fla', 'nsa_fla_bwd', 'nsa_tilelang', 'nsa_tilelang_bwd', 'nsa_xunhaolai', 'nsa_xunhaolai_bwd', 'nsa_lucidrains', 'nsa_lucidrains_bwd', 'nsa_falai', 'nsa_falai_bwd', 'flash', 'flash_bwd'],
         # label name for the lines
-        line_names=['nsa', 'nsa_bwd', 'nsa_fla', 'nsa_fla_bwd', 'nsa_tilelang', 'nsa_tilelang_bwd', 'nsa_xunhaolai', 'nsa_xunhaolai_bwd', 'nsa_lucidrains', 'nsa_lucidrains_bwd', 'nsa_falai', 'nsa_falai_bwd', 'flash', 'flash_bwd'],
+        line_names=['nsa', 'nsa_bwd', 'flash', 'flash_bwd'], #'nsa_fla', 'nsa_fla_bwd', 'nsa_tilelang', 'nsa_tilelang_bwd', 'nsa_xunhaolai', 'nsa_xunhaolai_bwd', 'nsa_lucidrains', 'nsa_lucidrains_bwd', 'nsa_falai', 'nsa_falai_bwd', 'flash', 'flash_bwd'],
         # line styles
         styles=[('green', '-'), ('blue', '-'), ('red', '-'), ('green', 'dotted'),
                 ('blue', 'dotted'), ('red', 'dotted'), ('cyan', '-'), ('cyan', 'dotted')],
@@ -66,7 +66,6 @@ def benchmark(L, provider):
         for _ in range(5):
             flash_nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections).backward(do)
 
-    print("go")
     quantiles = [0.5, 0.2, 0.8]
     results = 0, 0, 0
     match provider:
@@ -74,17 +73,12 @@ def benchmark(L, provider):
             results = triton.testing.do_bench(lambda: flash_nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections), quantiles=quantiles)
         case 'nsa_bwd':
             results = triton.testing.do_bench(lambda: flash_nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections).backward(do), quantiles=quantiles)
-        case 'nsa_fla':
-            results = triton.testing.do_bench(lambda: nsa_fla(q, k, v, g_cmp, g_slc, g_swa, block_selections, block_size, swa_size), quantiles=quantiles)
-        case 'nsa_fla_bwd':
-            results = triton.testing.do_bench(lambda: nsa_fla(q, k, v, g_cmp, g_slc, g_swa, block_selections, block_size, swa_size).backward(do), quantiles=quantiles)
         case 'flash':
             results = triton.testing.do_bench(lambda: flash_attn_func(q, k, v, causal=True), quantiles=quantiles)
         case 'flash_bwd':
             results = triton.testing.do_bench(lambda: flash_attn_func(q, k, v, causal=True).backward(do), quantiles=quantiles)
         case _:
             results = 0, 0, 0
-    print("done")
 
     return results
 

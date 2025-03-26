@@ -59,6 +59,8 @@ def nsa_func(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, g_cmp: torch.Ten
     lse_cmp = lse_cmp.transpose(1, 2) # (B, L, H)
     o += g_cmp.unsqueeze(-1) * o_cmp
 
+    
+
     # the first block_size-1 queries don't attend to anything in this attn (but that's ok)
     
     # compute selection
