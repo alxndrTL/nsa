@@ -6,8 +6,6 @@ from nsa import nsa_func
 
 from fla.ops.nsa import parallel_nsa as nsa_fla
 
-from native_sparse_attention.ops import linear_compress, compressed_attention, topk_sparse_attention
-
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         # argument names to use as an x-axis for the plot
@@ -30,6 +28,8 @@ from native_sparse_attention.ops import linear_compress, compressed_attention, t
     )
 )
 def benchmark(L, provider):
+    print(f"L={L}, provider={provider}")
+
     device = "cuda"
     dtype = torch.bfloat16
     requires_grad = True
@@ -39,33 +39,41 @@ def benchmark(L, provider):
     block_selections = 8
     swa_size = 512
 
-    q = torch.randn(B, L, HQ, DK, requires_grad=requires_grad, device=device)
+    q = torch.randn(B, L, HQ, DK, requires_grad=requires_grad, dtype=dtype, device=device)
     if 'nsa' in provider:
         if provider in ['nsa', 'nsa_bwd']:
-            k = torch.randn(B, L, 3*HK, DK, requires_grad=requires_grad, device=device)
-            v = torch.randn(B, L, 3*HK, DV, requires_grad=requires_grad, device=device)
-            w_k = torch.randn(HK, block_size*DK, DK, requires_grad=requires_grad, device=device)
-            w_v = torch.randn(HK, block_size*DV, DV, requires_grad=requires_grad, device=device)
-            pe_k = torch.randn(HK, block_size, DK, requires_grad=requires_grad, device=device)
-            pe_v = torch.randn(HK, block_size, DV, requires_grad=requires_grad, device=device)
+            k = torch.randn(B, L, 3*HK, DK, requires_grad=requires_grad, dtype=dtype, device=device)
+            v = torch.randn(B, L, 3*HK, DV, requires_grad=requires_grad, dtype=dtype, device=device)
+            w_k = torch.randn(HK, block_size*DK, DK, requires_grad=requires_grad, dtype=dtype, device=device)
+            w_v = torch.randn(HK, block_size*DV, DV, requires_grad=requires_grad, dtype=dtype, device=device)
+            pe_k = torch.randn(HK, block_size, DK, requires_grad=requires_grad, dtype=dtype, device=device)
+            pe_v = torch.randn(HK, block_size, DV, requires_grad=requires_grad, dtype=dtype, device=device)
         else:
-            k = torch.randn(B, L, HK, DK, requires_grad=requires_grad, device=device)
-            v = torch.randn(B, L, HK, DV, requires_grad=requires_grad, device=device)
-        g_cmp = torch.randn(B, L, HQ, requires_grad=requires_grad, device=device)
-        g_slc = torch.randn(B, L, HQ, requires_grad=requires_grad, device=device)
-        g_swa = torch.randn(B, L, HQ, requires_grad=requires_grad, device=device)
+            k = torch.randn(B, L, HK, DK, requires_grad=requires_grad, dtype=dtype, device=device)
+            v = torch.randn(B, L, HK, DV, requires_grad=requires_grad, dtype=dtype, device=device)
+        g_cmp = torch.randn(B, L, HQ, requires_grad=requires_grad, dtype=dtype, device=device)
+        g_slc = torch.randn(B, L, HQ, requires_grad=requires_grad, dtype=dtype, device=device)
+        g_swa = torch.randn(B, L, HQ, requires_grad=requires_grad, dtype=dtype, device=device)
     else:
-        k = torch.randn(B, L, HK, DK, requires_grad=requires_grad, device=device)
-        v = torch.randn(B, L, HK, DV, requires_grad=requires_grad, device=device)
-    do = torch.ones(B, L, HQ, DV, dtype=dtype)
+        k = torch.randn(B, L, HK, DK, requires_grad=requires_grad, dtype=dtype, device=device)
+        v = torch.randn(B, L, HK, DV, requires_grad=requires_grad, dtype=dtype, device=device)
+    do = torch.ones(B, L, HQ, DV, dtype=dtype, device=device)
 
+    if provider in ['nsa', 'nsa_bwd']:
+        flash_nsa_func = torch.compile(nsa_func)
+
+        # warmup
+        for _ in range(5):
+            flash_nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections).backward(do)
+
+    print("go")
     quantiles = [0.5, 0.2, 0.8]
     results = 0, 0, 0
     match provider:
         case 'nsa':
-            results = triton.testing.do_bench(lambda: nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections), quantiles=quantiles)
+            results = triton.testing.do_bench(lambda: flash_nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections), quantiles=quantiles)
         case 'nsa_bwd':
-            results = triton.testing.do_bench(lambda: nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections).backward(do), quantiles=quantiles)
+            results = triton.testing.do_bench(lambda: flash_nsa_func(q, k, v, g_cmp, g_slc, g_swa, w_k, w_v, pe_k, pe_v, block_size, block_stride, swa_size, block_selections).backward(do), quantiles=quantiles)
         case 'nsa_fla':
             results = triton.testing.do_bench(lambda: nsa_fla(q, k, v, g_cmp, g_slc, g_swa, block_selections, block_size, swa_size), quantiles=quantiles)
         case 'nsa_fla_bwd':
@@ -76,6 +84,7 @@ def benchmark(L, provider):
             results = triton.testing.do_bench(lambda: flash_attn_func(q, k, v, causal=True).backward(do), quantiles=quantiles)
         case _:
             results = 0, 0, 0
+    print("done")
 
     return results
 
