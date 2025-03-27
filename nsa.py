@@ -59,8 +59,6 @@ def nsa_func(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, g_cmp: torch.Ten
     lse_cmp = lse_cmp.transpose(1, 2) # (B, L, H)
     o += g_cmp.unsqueeze(-1) * o_cmp
 
-    
-
     # the first block_size-1 queries don't attend to anything in this attn (but that's ok)
     
     # compute selection
@@ -81,8 +79,8 @@ def nsa_func(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, g_cmp: torch.Ten
         causal_mask = q_idx >= kv_idx
         selection_mask = select_boolean[b, h, q_idx, block_idx]
         return causal_mask & (selection_mask | first_block_mask | prev_block_mask | pprev_block_mask)
-    block_mask = create_block_mask(selection_mod, B=B, H=HQ, Q_LEN=L, KV_LEN=L, _compile=True)
-    o_slc = flex_attention(q.transpose(1, 2), k_slc.transpose(1, 2), v_slc.transpose(1, 2), block_mask=block_mask, enable_gqa=True).transpose(1, 2) # (B, L, HQ, DV)
+    #block_mask = create_block_mask(selection_mod, B=B, H=HQ, Q_LEN=L, KV_LEN=L, _compile=True)
+    o_slc = flex_attention(q.transpose(1, 2), k_slc.transpose(1, 2), v_slc.transpose(1, 2), block_mask=None, enable_gqa=True).transpose(1, 2) # (B, L, HQ, DV)
     o += g_slc.unsqueeze(-1) * o_slc # (B, L, H, DV)
 
     return o

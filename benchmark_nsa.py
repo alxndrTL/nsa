@@ -11,7 +11,7 @@ from fla.ops.nsa import parallel_nsa as nsa_fla
         # argument names to use as an x-axis for the plot
         x_names=['L'],
         # different possible values for `x_name`
-        x_vals=[128 * 2 ** i for i in range(0, 8)],
+        x_vals=[128 * 2 ** i for i in range(5, 8)],
         # argument name whose value corresponds to a different line in the plot
         line_arg='provider',
         # possible values for `line_arg``
@@ -81,7 +81,6 @@ def benchmark(L, provider):
             results = 0, 0, 0
 
     return results
-
 
 if __name__ == '__main__':
     benchmark.run(print_data=True, save_path='.')
